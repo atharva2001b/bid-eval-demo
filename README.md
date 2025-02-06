@@ -1,20 +1,13 @@
-# bid-eval-demo
+# Bid Evaluation Demo
 
-A demo project for bid evaluation built with Streamlit.
-
-## Installation
-
-Follow these steps to set up the project locally.
-# Streamlit Project
-
-A streamlit application that [brief description of what your app does].
+A Streamlit application for evaluating and analyzing bid proposals.
 
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd [project-name]
+git clone https://github.com/atharva2001b/bid-eval-demo.git
+cd bid-eval-demo
 ```
 
 2. Create a virtual environment:
@@ -30,32 +23,34 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the application:
+Launch the application:
 ```bash
 streamlit run runner.py
 ```
 
-The app will be available at `http://localhost:8501`
+Access the web interface at `http://localhost:8501`
 
+## Project Structure
 
-## Development
-
-To add new dependencies:
-```bash
-pip freeze > requirements.txt
+```
+.
+├── requirements.txt    # Project dependencies
+├── runner.py          # Main Streamlit application
+└── README.md          # Documentation
 ```
 
-### Prerequisites
+## Contributing
 
-- **Python 3.8 or later**  
-  (We recommend Python 3.9+ for the best compatibility.)
-- **pip** – Python's package installer.
-- **Git** – To clone the repository (optional if you download the ZIP).
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/improvement`)
+3. Commit changes (`git commit -am 'Add improvement'`)
+4. Push to branch (`git push origin feature/improvement`)
+5. Open a Pull Request
 
-### Clone the Repository
+## License
 
-If you haven’t already, clone the repository using Git:
+MIT License
 
-```bash
-git clone https://github.com/yourusername/bid-eval-demo.git
-cd bid-eval-demo
+## Contact
+
+Atharva B. - [@atharva2001b](https://github.com/atharva2001b)
