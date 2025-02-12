@@ -6,40 +6,69 @@ class OllamaProcessor:
     def __init__(self, base_url="http://localhost:11434"):
         self.base_url = base_url
         self.api_endpoint = f"{base_url}/api/generate"
-        self.model = "llama3.2:3b"  # Specifically using llama2 3b model
-        
+        self.model = "llama3.2:3b"
+
     def generate_bid_evaluation(self, rag_context):
-        """
-        Generate a bid evaluation report using Ollama with RAG context.
-        
-        Args:
-            rag_context (dict): Dictionary containing RAG query results
-            
-        Returns:
-            str: Generated bid evaluation report in markdown format
-        """
-        # Combine all RAG results into a single context string
+        """Generate a structured bid evaluation report using Ollama with RAG context."""
+        # Combine RAG results into context
         context = "\n\n".join([
             f"Query: {query}\nAnswer: {answer}"
             for query, answer in rag_context.items()
         ])
         
-        # Construct the prompt - keeping it simpler for the 3B model
+        # Structured prompt template
         prompt = f"""
-Context from document analysis:
+Based on the following context from document analysis:
 {context}
 
-Using the above context, create a bid evaluation report in markdown format. Include:
-1. Company Overview
-2. Technical Assessment
-3. Commercial Terms
-4. Risk Analysis
-5. Final Score (0-100)
+Generate a detailed bid evaluation report in the following structured markdown format. 
+Use '###' for main sections and include ALL the sections below:
 
-Keep the response clear and concise.
+### Company Overview
+Company Name: [Extract or infer company name]
+Submission Date: [Extract or infer date]
+Industry: [Extract or infer industry]
+
+### Scores
+- Technical Score: [0-100]
+- Commercial Score: [0-100]
+- Compliance Score: [0-100]
+- Risk Score: [0-100]
+- Overall Score: [0-100]
+
+### Key Strengths
+- [List 3-5 key strengths with bullet points]
+
+### Areas for Improvement
+- [List 3-5 weaknesses or areas needing improvement with bullet points]
+
+### Risk Analysis
+Risk Level: [High/Medium/Low]
+Key Risk Factors:
+- [List 3-5 specific risk factors with bullet points]
+
+### Commercial Terms
+Pricing Details: [Specify pricing structure/amount]
+Payment Terms: [Specify payment terms]
+Delivery Timeline: [Specify delivery timeline]
+
+### Technical Compliance
+Standards Met:
+- [List key technical standards/requirements met]
+
+Areas of Non-compliance:
+- [List any technical gaps or non-compliance]
+
+### Recommendations
+- [List 2-3 specific recommendations]
+
+### Final Assessment
+[2-3 sentences summarizing the overall evaluation and recommendation]
+
+Ensure all scores are numerical values between 0-100 and maintain consistent formatting throughout.
 """
         
-        # Prepare the request payload
+        # Prepare request payload
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -52,15 +81,14 @@ Keep the response clear and concise.
         }
         
         max_retries = 3
-        retry_delay = 2  # seconds
+        retry_delay = 2
         
         for attempt in range(max_retries):
             try:
-                # Make the API call to Ollama
                 response = requests.post(
-                    self.api_endpoint, 
+                    self.api_endpoint,
                     json=payload,
-                    timeout=300  # Adding timeout
+                    timeout=300
                 )
                 
                 if response.status_code == 200:
@@ -68,38 +96,19 @@ Keep the response clear and concise.
                     return result.get('response', '')
                 else:
                     print(f"Attempt {attempt + 1}: Request failed with status {response.status_code}")
-                    print(f"Response content: {response.text}")
-                    
                     if attempt < max_retries - 1:
-                        print(f"Retrying in {retry_delay} seconds...")
                         time.sleep(retry_delay)
                     continue
                     
             except requests.exceptions.RequestException as e:
                 print(f"Attempt {attempt + 1}: Error communicating with Ollama: {str(e)}")
                 if attempt < max_retries - 1:
-                    print(f"Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                 continue
         
-        return "Error: Failed to generate bid evaluation after multiple attempts. Please check if Ollama is running correctly with the llama2:3b model."
-        
+        return "Error: Failed to generate bid evaluation after multiple attempts."
+
     def evaluate_bid(self, rag_results):
-        """
-        Process RAG results and generate bid evaluation report.
-        
-        Args:
-            rag_results (list): List of tuples containing (query, answer) pairs
-            
-        Returns:
-            str: Generated bid evaluation report
-        """
-        # Convert RAG results to dictionary format
-        rag_context = {
-            query: answer for query, answer in rag_results
-        }
-        
-        # Generate the evaluation report
-        evaluation_report = self.generate_bid_evaluation(rag_context)
-        
-        return evaluation_report
+        """Process RAG results and generate bid evaluation report."""
+        rag_context = {query: answer for query, answer in rag_results}
+        return self.generate_bid_evaluation(rag_context)
