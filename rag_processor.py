@@ -30,6 +30,7 @@ class RAGProcessor:
         self.embeddings_cache = {}
         
     def clean_text(self, text: str) -> str:
+        """Clean and normalize text."""
         text = re.sub(r'[^a-zA-Z0-9\s.:\-()]', ' ', text)
         text = ' '.join(text.split())
         return text
@@ -51,6 +52,7 @@ class RAGProcessor:
         return embeddings
         
     def preprocess_text(self, file_path: str) -> List[str]:
+        """Preprocess text file and split into sections."""
         # Read the content of the file
         with open(file_path, 'r', encoding='utf-8') as file:
             text = file.read()
@@ -79,6 +81,7 @@ class RAGProcessor:
         return processed_sentences
     
     def create_sentence_windows(self, sentences: List[str], window_size: int = 3) -> List[str]:
+        """Create context windows from sentences."""
         windows = []
         original_windows = []
         
@@ -106,6 +109,7 @@ class RAGProcessor:
         return windows
     
     def index_text(self, text: str, window_size: int = 3):
+        """Index text for retrieval."""
         self.sentences = []
         self.embeddings_cache = {}
         
@@ -125,6 +129,7 @@ class RAGProcessor:
         self.index.add(embeddings_np)
     
     def retrieve_context(self, query: str, k: int = 3) -> List[Tuple[str, float]]:
+        """Retrieve relevant context for a query."""
         clean_query = self.clean_text(query)
         query_embedding = self.get_embedding(clean_query)
         query_embedding = self.normalize_embeddings(query_embedding.reshape(1, -1))

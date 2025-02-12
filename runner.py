@@ -8,8 +8,6 @@ import tempfile
 import os
 import time
 
-
-
 def get_demo_queries():
     """Returns a list of demo queries about the bid document."""
     return [
@@ -57,7 +55,15 @@ def process_single_pdf(pdf_file, ui_instance, state_manager):
         # Generate evaluation report
         ui_instance.update_progress(0.8, f"Generating evaluation report for {pdf_file.name}...")
         ollama = OllamaProcessor()
-        evaluation_report = ollama.evaluate_bid(list(zip(queries, results)))
+        
+        # Get tender context if available
+        tender_context = st.session_state.get('tender_context')
+        
+        # Generate evaluation with tender context
+        evaluation_report = ollama.evaluate_bid(
+            list(zip(queries, results)),
+            tender_context
+        )
         
         # Store results
         result_data = {
@@ -113,7 +119,6 @@ def main():
         # Clear progress indicators when done
         progress_container.empty()
         
-        # Switch to Analysis tab after processing is complete
         # Switch to Analysis tab after processing is complete
         st.session_state.current_tab = "Analysis"
         st.rerun()
