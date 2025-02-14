@@ -1,6 +1,7 @@
 import streamlit as st
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
+import json
 import re
 import pandas as pd
 
@@ -16,35 +17,33 @@ class ProcessingState:
 
 @dataclass
 class BidScore:
-    """Represents the scores from a bid evaluation."""
+    """Represents the scores and justifications from a bid evaluation."""
     technical_score: Optional[int] = None
     commercial_score: Optional[int] = None
     compliance_score: Optional[int] = None
     risk_score: Optional[int] = None
     overall_score: Optional[int] = None
+    technical_justification: Optional[str] = None
+    commercial_justification: Optional[str] = None
+    compliance_justification: Optional[str] = None
+    risk_justification: Optional[str] = None
+    overall_justification: Optional[str] = None
     company_name: Optional[str] = None
-    risk_level: Optional[str] = None
-    key_strengths: List[str] = None
-    key_weaknesses: List[str] = None
-    risk_factors: List[str] = None
     pricing_details: Optional[str] = None
-    payment_terms: Optional[str] = None
     delivery_timeline: Optional[str] = None
-    
-    def __post_init__(self):
-        """Initialize empty lists for collections if None."""
-        if self.key_strengths is None:
-            self.key_strengths = []
-        if self.key_weaknesses is None:
-            self.key_weaknesses = []
-        if self.risk_factors is None:
-            self.risk_factors = []
 
 class StateManager:
     """Manages application state and provides interface for state updates."""
     
     def __init__(self):
-        """Initialize the state manager."""
+        """
+        Initialize the state manager.
+        
+        Args:
+            ollama_processor: Instance of OllamaProcessor for score extraction
+        """
+        from ollama_processor import OllamaProcessor
+        self.ollama_processor = OllamaProcessor()
         self.initialize_session_state()
     
     @staticmethod
@@ -67,117 +66,47 @@ class StateManager:
         if 'tender_context' not in st.session_state:
             st.session_state.tender_context = None
 
-    def _extract_bullet_points(self, section: str) -> List[str]:
-        """Extract bullet points from a section using regex."""
-        bullet_points = []
+    def _process_score_json(self, scores_json: str) -> BidScore:
+        """
+        Process the JSON scores from OllamaProcessor into BidScore object.
         
-        patterns = [
-            r"(?:^|\n)[*-]\s*(?:\*\*)?([^*\n]+?)(?:\*\*)?(?=\n|$)",  # Markdown bullets
-            r"(?:^|\n)(?:\d+\.|\u2022|\u25E6|\u25AA)\s*([^\n]+)",     # Numbered and unicode bullets
-        ]
-        
-        for pattern in patterns:
-            matches = re.finditer(pattern, section, re.MULTILINE)
-            bullet_points.extend([
-                match.group(1).strip()
-                for match in matches
-                if match.group(1).strip()
-            ])
-        
-        return bullet_points
-
-    def _extract_section(self, report: str, section_name: str) -> str:
-        """Extract a section from the evaluation report."""
-        patterns = [
-            f"\\*\\*{section_name}\\*\\*\\s*([^*]+?)(?=\\*\\*|$)",  # Bold markdown
-            f"{section_name}:\\s*([^*]+?)(?=\\*\\*|$)",             # Plain text with colon
-            f"{section_name}\\s*([^*]+?)(?=\\*\\*|$)"               # Plain text without colon
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, report, re.DOTALL | re.MULTILINE)
-            if match:
-                return match.group(1).strip()
-        return ""
-
-    def _extract_score_table(self, evaluation_report: str) -> BidScore:
-        """Extract scores and other data from the evaluation report."""
-        scores = BidScore()
-        
-        # Extract company name
-        company_match = re.search(r'Company Name:\s*([^,\n]+)', evaluation_report)
-        if company_match:
-            scores.company_name = company_match.group(1).strip()
-        
-        # Extract scores using multiple patterns
-        score_patterns = {
-            'technical_score': [
-                r'Technical Score:?\s*\*?(\d+)\*?',
-                r'\|\s*Technical\s*\|\s*(\d+)\s*\|'
-            ],
-            'commercial_score': [
-                r'Commercial Score:?\s*\*?(\d+)\*?',
-                r'\|\s*Commercial\s*\|\s*(\d+)\s*\|'
-            ],
-            'compliance_score': [
-                r'Compliance Score:?\s*\*?(\d+)\*?',
-                r'\|\s*Compliance\s*\|\s*(\d+)\s*\|'
-            ],
-            'risk_score': [
-                r'Risk Score:?\s*\*?(\d+)\*?',
-                r'\|\s*Risk\s*\|\s*(\d+)\s*\|'
-            ],
-            'overall_score': [
-                r'Overall Score:?\s*\*?(\d+)\*?',
-                r'\|\s*Overall\s*\|\s*(\d+)\s*\|'
-            ]
-        }
-        
-        # Extract scores
-        for score_name, patterns in score_patterns.items():
-            for pattern in patterns:
-                match = re.search(pattern, evaluation_report)
-                if match:
-                    try:
-                        setattr(scores, score_name, int(match.group(1)))
-                        break
-                    except (ValueError, IndexError):
-                        continue
-
-        # Extract risk level
-        risk_section = self._extract_section(evaluation_report, "Risk Analysis")
-        risk_level_match = re.search(r'Risk Level:\s*\*?([^*\n]+?)\*?(?=\n|$)', risk_section)
-        if risk_level_match:
-            scores.risk_level = risk_level_match.group(1).strip()
-
-        # Extract lists
-        scores.key_strengths = self._extract_bullet_points(
-            self._extract_section(evaluation_report, "Key Strengths")
-        )
-        scores.key_weaknesses = self._extract_bullet_points(
-            self._extract_section(evaluation_report, "Areas for Improvement")
-        )
-        scores.risk_factors = self._extract_bullet_points(risk_section)
-
-        # Extract commercial terms
-        commercial_section = self._extract_section(evaluation_report, "Commercial Terms")
-        
-        pricing_match = re.search(r'Pricing Details:\s*([^.\n]+)', commercial_section)
-        if pricing_match:
-            scores.pricing_details = pricing_match.group(1).strip()
-
-        payment_match = re.search(r'Payment Terms:\s*([^.\n]+)', commercial_section)
-        if payment_match:
-            scores.payment_terms = payment_match.group(1).strip()
-
-        delivery_match = re.search(r'Delivery Timeline:\s*([^.\n]+)', commercial_section)
-        if delivery_match:
-            scores.delivery_timeline = delivery_match.group(1).strip()
-        
-        return scores
+        Args:
+            scores_json (str): JSON string containing the scores and justifications
+            
+        Returns:
+            BidScore: Processed bid scores and justifications
+        """
+        try:
+            scores_data = json.loads(scores_json)['scores']
+            
+            return BidScore(
+                technical_score=scores_data['technical']['score'],
+                commercial_score=scores_data['commercial']['score'],
+                compliance_score=scores_data['compliance']['score'],
+                risk_score=scores_data['risk']['score'],
+                overall_score=scores_data['overall']['score'],
+                technical_justification=scores_data['technical']['justification'],
+                commercial_justification=scores_data['commercial']['justification'],
+                compliance_justification=scores_data['compliance']['justification'],
+                risk_justification=scores_data['risk']['justification'],
+                overall_justification=scores_data['overall']['justification']
+            )
+        except (json.JSONDecodeError, KeyError) as e:
+            st.error(f"Error processing score JSON: {str(e)}")
+            return BidScore()
 
     def store_result(self, file_name: str, result: Dict[str, Any]):
-        """Store processing results."""
+        """
+        Store processing results and extract scores using OllamaProcessor.
+        
+        Args:
+            file_name (str): Name of the processed file
+            result (Dict[str, Any]): Processing results including evaluation report
+        """
+        if not self.ollama_processor:
+            st.error("OllamaProcessor not initialized")
+            return
+            
         if 'results' not in st.session_state:
             st.session_state.results = {}
         if 'evaluation_analytics' not in st.session_state:
@@ -191,7 +120,25 @@ class StateManager:
         
         # Extract and store scores if evaluation report exists
         if 'evaluation_report' in result:
-            scores = self._extract_score_table(result['evaluation_report'])
+            # Get JSON scores from OllamaProcessor
+            scores_json = self.ollama_processor.get_evaluation_scores(result['evaluation_report'])
+            
+            # Process JSON into BidScore object
+            scores = self._process_score_json(scores_json)
+            
+            # Extract basic metadata that might be in the report
+            company_match = re.search(r'Company Name:\s*([^,\n]+)', result['evaluation_report'])
+            if company_match:
+                scores.company_name = company_match.group(1).strip()
+                
+            pricing_match = re.search(r'Pricing Details:\s*([^.\n]+)', result['evaluation_report'])
+            if pricing_match:
+                scores.pricing_details = pricing_match.group(1).strip()
+                
+            delivery_match = re.search(r'Delivery Timeline:\s*([^.\n]+)', result['evaluation_report'])
+            if delivery_match:
+                scores.delivery_timeline = delivery_match.group(1).strip()
+            
             st.session_state.evaluation_analytics[file_name] = scores
 
     def get_results(self) -> Dict[str, Any]:
@@ -203,7 +150,12 @@ class StateManager:
         return st.session_state.get('evaluation_analytics', {})
 
     def get_comparison_data(self) -> Dict[str, Dict]:
-        """Get formatted comparison data for evaluation."""
+        """
+        Get formatted comparison data for evaluation.
+        
+        Returns:
+            Dict[str, Dict]: Formatted comparison data for all documents
+        """
         analytics = self.get_evaluation_analytics()
         comparison_data = {}
         
@@ -215,12 +167,12 @@ class StateManager:
                 'Compliance Score': scores.compliance_score or 0,
                 'Risk Score': scores.risk_score or 0,
                 'Overall Score': scores.overall_score or 0,
-                'Risk Level': scores.risk_level or 'N/A',
-                'Key Strengths': len(scores.key_strengths),
-                'Key Weaknesses': len(scores.key_weaknesses),
-                'Risk Factors': len(scores.risk_factors),
+                'Technical Justification': scores.technical_justification or 'N/A',
+                'Commercial Justification': scores.commercial_justification or 'N/A',
+                'Compliance Justification': scores.compliance_justification or 'N/A',
+                'Risk Justification': scores.risk_justification or 'N/A',
+                'Overall Justification': scores.overall_justification or 'N/A',
                 'Pricing': scores.pricing_details or 'N/A',
-                'Payment Terms': scores.payment_terms or 'N/A',
                 'Delivery': scores.delivery_timeline or 'N/A'
             }
         
@@ -238,7 +190,12 @@ class StateManager:
 
     @staticmethod
     def start_processing(files: List):
-        """Add files to processing queue."""
+        """
+        Add files to processing queue.
+        
+        Args:
+            files (List): List of files to process
+        """
         st.session_state.processing_queue = [
             f for f in files 
             if f.name not in st.session_state.file_history
@@ -257,12 +214,25 @@ class StateManager:
 
     @staticmethod
     def is_file_processed(file_name: str) -> bool:
-        """Check if a file has already been processed."""
+        """
+        Check if a file has already been processed.
+        
+        Args:
+            file_name (str): Name of the file to check
+            
+        Returns:
+            bool: True if file has been processed
+        """
         return file_name in st.session_state.get('file_history', set())
 
     @staticmethod
     def remove_from_queue(file_name: str):
-        """Remove a file from the processing queue."""
+        """
+        Remove a file from the processing queue.
+        
+        Args:
+            file_name (str): Name of the file to remove
+        """
         st.session_state.processing_queue = [
             f for f in st.session_state.processing_queue 
             if f.name != file_name
@@ -279,7 +249,17 @@ class StateManager:
         error: Optional[str] = None,
         is_complete: Optional[bool] = None
     ):
-        """Update processing state parameters."""
+        """
+        Update processing state parameters.
+        
+        Args:
+            file_name (str, optional): Current file being processed
+            progress (float, optional): Processing progress (0-1)
+            status (str, optional): Status message
+            is_processing (bool, optional): Processing state
+            error (str, optional): Error message
+            is_complete (bool, optional): Completion state
+        """
         if not hasattr(st.session_state, 'processing_state'):
             st.session_state.processing_state = ProcessingState()
             

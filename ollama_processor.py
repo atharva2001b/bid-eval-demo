@@ -127,3 +127,81 @@ Note: Ensure all scores are numeric values and include brief justification based
         """Process RAG results and generate evaluation report."""
         rag_context = {query: answer for query, answer in rag_results}
         return self.generate_bid_evaluation(rag_context, tender_context)
+    
+    def get_evaluation_scores(self, evaluation_text: str) -> str:
+        """
+        Extract evaluation scores from evaluation text and return JSON format score table.
+        
+        Args:
+            evaluation_text (str): The evaluation report text
+            
+        Returns:
+            str: JSON response from Ollama containing the score table
+        """
+        # Prompt focused solely on score extraction
+        prompt = f"""
+    Given the following bid evaluation text, extract ONLY the evaluation scores and their justifications.
+    Return the data in the following JSON format, with scores as integers between 0-100:
+
+    {{
+        "scores": {{
+            "technical": {{
+                "score": <integer>,
+                "justification": "<brief reason>"
+            }},
+            "commercial": {{
+                "score": <integer>,
+                "justification": "<brief reason>"
+            }},
+            "compliance": {{
+                "score": <integer>,
+                "justification": "<brief reason>"
+            }},
+            "risk": {{
+                "score": <integer>,
+                "justification": "<brief reason>"
+            }},
+            "overall": {{
+                "score": <integer>,
+                "justification": "<brief reason>"
+            }}
+        }}
+    }}
+
+    Evaluation Text:
+    {evaluation_text}
+
+    Return ONLY the JSON object with no additional text or formatting.
+    """
+        
+        # Prepare request payload
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.1,  # Lower temperature for more consistent output
+                "top_p": 0.9,
+                "max_tokens": 1024
+            }
+        }
+        
+        try:
+            response = requests.post(
+                self.api_endpoint,
+                json=payload,
+                timeout=60  # Shorter timeout since we're just extracting scores
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result.get('response', '')
+            else:
+                return json.dumps({
+                    "error": f"Request failed with status {response.status_code}"
+                })
+                
+        except requests.exceptions.RequestException as e:
+            return json.dumps({
+                "error": f"Error communicating with Ollama: {str(e)}"
+            })
