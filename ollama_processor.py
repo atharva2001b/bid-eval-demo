@@ -14,17 +14,7 @@ class OllamaProcessor:
         rag_context: Dict[str, str],
         tender_context: Optional[Dict[str, Union[str, List[str]]]] = None
     ) -> str:
-        """
-        Generate a structured bid evaluation report using Ollama with RAG context 
-        and tender requirements.
-        
-        Args:
-            rag_context: Dict of query-answer pairs from bid document analysis
-            tender_context: Optional dict containing tender document analysis
-        
-        Returns:
-            str: Generated evaluation report
-        """
+        """Generate a structured bid evaluation report."""
         # Combine RAG results into context
         bid_context = "\n\n".join([
             f"Query: {query}\nAnswer: {answer}"
@@ -48,92 +38,45 @@ Given the following tender requirements:
 
 Evaluate this bid proposal against these specific tender requirements. 
 Consider the following in your evaluation:
-1. Technical Alignment: How well does the bid meet each technical requirement?
-2. Eligibility Compliance: Does the bidder meet all eligibility criteria?
-3. Mandatory Requirements: Are all mandatory requirements satisfied?
-4. Timeline Compatibility: Do the proposed timelines align with requirements?
-5. Financial Terms: Are financial terms and pricing aligned with specifications?
-6. Risk Assessment: What are the potential risks in terms of compliance?
-
-For scoring, use the following criteria:
-- Technical Score: Based on meeting technical specifications and requirements
-- Commercial Score: Based on pricing, payment terms, and commercial viability
-- Compliance Score: Based on meeting mandatory and regulatory requirements
-- Risk Score: Based on identified risks and mitigation measures
-- Overall Score: Weighted average considering all aspects
+1. How well does the bid meet each technical requirement?
+2. Does the bidder meet all eligibility criteria?
+3. Are there any compliance gaps?
+4. Do the proposed timelines match requirements?
+5. Are financial terms aligned with tender specifications?
 """
-        
-        # Structured prompt template
+
+        # Main evaluation prompt
         prompt = f"""{tender_prompt}
 Based on the following bid document analysis:
 {bid_context}
 
-Generate a detailed bid evaluation report in the following structured markdown format.
-Use '###' for main sections and include ALL the sections below:
+Generate a structured evaluation report in the following format, ensuring scores reflect alignment with tender requirements:
 
 ### Company Overview
-Company Name: [Extract or infer company name]
-Submission Date: [Extract or infer date]
-Industry: [Extract or infer industry]
+Company Name: [Extract from document]
+Submission Date: [Extract from document]
+Industry: [Extract from document]
 
-### Scores
-- Technical Score: [0-100] - Score based on meeting technical requirements
-- Commercial Score: [0-100] - Score based on pricing and commercial terms
-- Compliance Score: [0-100] - Score based on meeting mandatory requirements
-- Risk Score: [0-100] - Score based on identified risks
-- Overall Score: [0-100] - Weighted average of all scores
+### Evaluation Scores
+Each score should be a numeric value between 0-100, with clear justification:
+* Technical Score: [0-100] - Based on technical requirements alignment
+* Commercial Score: [0-100] - Based on commercial terms alignment
+* Compliance Score: [0-100] - Based on mandatory requirements met
+* Risk Score: [0-100] - Based on risk assessment
+* Overall Score: [0-100] - Weighted average considering all factors
 
-### Tender Compliance
-- [List specific areas where bid meets tender requirements]
-- [List any gaps or deviations from tender requirements]
-- [Evaluate alignment with mandatory criteria]
-- [Assess technical specification compliance]
+[... Rest of standard sections ...]
 
-### Key Strengths
-- [List 3-5 key strengths with bullet points]
-- [Focus on areas of strong alignment with tender]
-- [Highlight unique value propositions]
+### Bid Evaluation Score Table
+| Category    | Score | Justification |
+|------------|-------|---------------|
+| Technical  | [0-100] | Brief reason |
+| Commercial | [0-100] | Brief reason |
+| Compliance | [0-100] | Brief reason |
+| Risk       | [0-100] | Brief reason |
+| Overall    | [0-100] | Overall assessment |
 
-### Areas for Improvement
-- [List 3-5 weaknesses or areas needing improvement]
-- [Identify gaps in tender requirement coverage]
-- [Note any unclear or incomplete responses]
-
-### Risk Analysis
-Risk Level: [High/Medium/Low]
-Key Risk Factors:
-- [List specific risk factors related to tender compliance]
-- [Identify technical and operational risks]
-- [Note any commercial or financial risks]
-
-### Commercial Terms
-Pricing Details: [Specify pricing structure/amount]
-Payment Terms: [Specify payment terms]
-Delivery Timeline: [Specify delivery timeline]
-- [Compare with tender requirements]
-- [Note any deviations]
-
-### Technical Compliance
-Standards Met:
-- [List technical standards/requirements met]
-- [Compare with tender specifications]
-
-Areas of Non-compliance:
-- [List any technical gaps]
-- [Identify missing requirements]
-
-### Recommendations
-- [Provide specific recommendations for improved compliance]
-- [Suggest risk mitigation measures]
-- [Note areas requiring clarification]
-
-### Final Assessment
-[Provide comprehensive evaluation of tender alignment]
-[Summarize key decision factors]
-[Make clear recommendation based on tender requirements]
-
-Ensure all scores are numerical values between 0-100 and maintain consistent formatting throughout.
-Score based on specific alignment with tender requirements where available.
+Note: Ensure all scores are numeric values and include brief justification based on tender requirements.
 """
         
         # Prepare request payload
@@ -181,15 +124,6 @@ Score based on specific alignment with tender requirements where available.
         rag_results: List[Tuple[str, str]],
         tender_context: Optional[Dict[str, Union[str, List[str]]]] = None
     ) -> str:
-        """
-        Process RAG results and generate bid evaluation report.
-        
-        Args:
-            rag_results: List of (query, answer) tuples from bid document analysis
-            tender_context: Optional dict containing tender document analysis
-        
-        Returns:
-            str: Generated evaluation report
-        """
+        """Process RAG results and generate evaluation report."""
         rag_context = {query: answer for query, answer in rag_results}
         return self.generate_bid_evaluation(rag_context, tender_context)
