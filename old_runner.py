@@ -1,4 +1,4 @@
-from rag_processor import process_queries
+from enhanced_rag_processor import process_queries
 import os
 import time
 import sys

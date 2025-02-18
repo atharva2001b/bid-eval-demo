@@ -8,119 +8,269 @@ class EvaluationPage:
     def __init__(self, state_manager: StateManager):
         self.state_manager = state_manager
 
-    def _plot_score_comparison(self, df: pd.DataFrame):
-        """Create a score comparison chart using plotly."""
-        # Melt the dataframe to get scores in long format
+    def _create_radar_chart(self, df: pd.DataFrame):
+        """Create an enhanced radar chart for score comparison."""
         score_cols = ['Technical Score', 'Commercial Score', 'Compliance Score', 'Risk Score']
-        df_melted = df.melt(
-            id_vars=['Company'],
-            value_vars=score_cols,
-            var_name='Category',
-            value_name='Score'
-        )
+        
+        fig = go.Figure()
+        for company in df['Company'].unique():
+            company_data = df[df['Company'] == company]
+            fig.add_trace(go.Scatterpolar(
+                r=company_data[score_cols].values[0],
+                theta=score_cols,
+                fill='toself',
+                name=company
+            ))
 
-        # Create radar chart
-        fig = px.line_polar(
-            df_melted,
-            r='Score',
-            theta='Category',
-            color='Company',
-            line_close=True,
-            range_r=[0, 100]
-        )
         fig.update_layout(
-            polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-            showlegend=True
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    tickfont=dict(size=10),
+                    gridcolor="rgba(0,0,0,0.1)"
+                )
+            ),
+            showlegend=True,
+            title="Score Distribution Analysis",
+            height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
+        return fig
 
-    def _plot_overall_rankings(self, df: pd.DataFrame):
-        """Create an overall rankings bar chart."""
-        fig = px.bar(
-            df,
-            x='Company',
-            y='Overall Score',
-            title='Overall Bid Rankings',
-            color='Overall Score',
-            color_continuous_scale='viridis'
+    def _create_score_breakdown(self, df: pd.DataFrame):
+        """Create a detailed score breakdown chart."""
+        fig = go.Figure()
+        
+        companies = df['Company'].tolist()
+        score_cols = ['Technical Score', 'Commercial Score', 'Compliance Score', 'Risk Score']
+        
+        for score in score_cols:
+            fig.add_trace(go.Bar(
+                name=score,
+                x=companies,
+                y=df[score],
+                text=df[score].apply(lambda x: f"{x}%"),
+                textposition='auto',
+            ))
+
+        fig.update_layout(
+            barmode='group',
+            title="Detailed Score Breakdown",
+            yaxis_title="Score (%)",
+            yaxis_range=[0, 100],
+            height=400,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
-        fig.update_layout(yaxis_range=[0, 100])
-        st.plotly_chart(fig, use_container_width=True)
+        return fig
+
+    def _create_risk_assessment(self, df: pd.DataFrame):
+        """Create a risk assessment visualization."""
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=df['Risk Score'],
+            y=df['Overall Score'],
+            mode='markers+text',
+            text=df['Company'],
+            textposition='top center',
+            marker=dict(
+                size=df['Risk Score'].apply(lambda x: max(20, 50 - x/2)),
+                color=df['Risk Score'],
+                colorscale='RdYlGn_r',
+                showscale=True,
+                colorbar=dict(title="Risk Score")
+            )
+        ))
+
+        fig.update_layout(
+            title="Risk vs Overall Performance",
+            xaxis_title="Risk Score (Lower is Better)",
+            yaxis_title="Overall Score",
+            height=400,
+            xaxis_range=[0, 100],
+            yaxis_range=[0, 100]
+        )
+        return fig
 
     def render(self):
-        """Render the evaluation page content."""
-        st.header("Evaluation Reports")
+        """Render the enhanced evaluation dashboard."""
+        st.header("Bid Evaluation Dashboard")
         
         results = self.state_manager.get_results()
         if not results:
-            st.info("No evaluation reports available yet. Please upload and process documents first.")
-            if st.button("Upload Documents", type="primary"):
-                st.session_state.current_tab = "Upload"
-                st.rerun()
+            self._render_empty_state()
             return
 
-        # Create tabs for different views
-        tab1, tab2, tab3 = st.tabs(["📊 Score Analysis", "📋 Reports", "📈 Comparison Table"])
+        # Get comparison data
+        comparison_data = self.state_manager.get_comparison_data()
+        if comparison_data:
+            df = pd.DataFrame(comparison_data).T.reset_index()
+            df.columns = ['Document'] + list(df.columns[1:])
+
+            # Top Summary Metrics
+            self._render_summary_metrics(df)
+
+            # Main Dashboard Tabs
+            tabs = st.tabs(["📊 Performance Analysis", "🎯 Detailed Scores", "📋 Reports", "📈 Data Table"])
+            
+            with tabs[0]:
+                self._render_performance_analysis(df)
+            
+            with tabs[1]:
+                self._render_detailed_scores(df)
+            
+            with tabs[2]:
+                self._render_individual_reports(results)
+            
+            with tabs[3]:
+                self._render_comparison_table(comparison_data)
+
+    def _render_empty_state(self):
+        """Render empty state message."""
+        st.info("No evaluation data available. Please upload and process documents first.")
+        if st.button("Upload Documents", type="primary"):
+            st.session_state.current_tab = "Upload"
+            st.rerun()
+
+    def _render_summary_metrics(self, df: pd.DataFrame):
+        """Render top summary metrics."""
+        col1, col2, col3, col4 = st.columns(4)
         
-        with tab1:
-            # Get comparison data
-            comparison_data = self.state_manager.get_comparison_data()
-            if comparison_data:
-                df = pd.DataFrame(comparison_data).T.reset_index()
-                df.columns = ['Document'] + list(df.columns[1:])
+        with col1:
+            top_performer = df.loc[df['Overall Score'].idxmax()]
+            st.metric(
+                "Top Performer",
+                top_performer['Company'],
+                f"{top_performer['Overall Score']}%"
+            )
+        
+        with col2:
+            avg_score = df['Overall Score'].mean()
+            st.metric(
+                "Average Score",
+                f"{avg_score:.1f}%",
+                f"{avg_score - 70:.1f}% vs Target"
+            )
+        
+        with col3:
+            qualified_bids = len(df[df['Overall Score'] >= 70])
+            st.metric(
+                "Qualified Bids",
+                qualified_bids,
+                f"{(qualified_bids/len(df))*100:.0f}% of total"
+            )
+        
+        with col4:
+            avg_risk = df['Risk Score'].mean()
+            st.metric(
+                "Average Risk Score",
+                f"{avg_risk:.1f}%",
+                f"{50 - avg_risk:.1f}% margin",
+                delta_color="inverse"
+            )
+
+    def _render_performance_analysis(self, df: pd.DataFrame):
+        """Render performance analysis section."""
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.plotly_chart(self._create_radar_chart(df), use_container_width=True)
+            
+        with col2:
+            st.plotly_chart(self._create_risk_assessment(df), use_container_width=True)
+        
+        # Score Breakdown
+        st.plotly_chart(self._create_score_breakdown(df), use_container_width=True)
+        
+        # Key Insights
+        with st.expander("📈 Key Insights"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("### Strengths")
+                top_performer = df.loc[df['Overall Score'].idxmax()]
+                st.write(f"• {top_performer['Company']} leads with {top_performer['Overall Score']:.0f}% overall score")
+                st.write(f"• Average technical score: {df['Technical Score'].mean():.1f}%")
+                st.write(f"• {len(df[df['Compliance Score'] >= 80])} bidders exceed 80% compliance")
                 
-                # Score comparison visualization
-                st.subheader("Score Comparison")
-                col1, col2 = st.columns(2)
-                
+            with col2:
+                st.write("### Areas of Concern")
+                high_risk = df[df['Risk Score'] > 60]['Company'].tolist()
+                if high_risk:
+                    st.write(f"• High risk profiles: {', '.join(high_risk)}")
+                low_commercial = df[df['Commercial Score'] < 60]['Company'].tolist()
+                if low_commercial:
+                    st.write(f"• Low commercial scores: {', '.join(low_commercial)}")
+
+    def _render_detailed_scores(self, df: pd.DataFrame):
+        """Render detailed scores analysis."""
+        # Score Distribution
+        score_cols = ['Technical Score', 'Commercial Score', 'Compliance Score', 'Risk Score']
+        for score_type in score_cols:
+            expander_label = f"{score_type} Analysis"
+            with st.expander(expander_label):
+                col1, col2 = st.columns([2, 1])
                 with col1:
-                    self._plot_score_comparison(df)
+                    fig = px.bar(
+                        df,
+                        x='Company',
+                        y=score_type,
+                        color=score_type,
+                        title=f"{score_type} Distribution",
+                        color_continuous_scale='viridis'
+                    )
+                    fig.update_layout(yaxis_range=[0, 100])
+                    st.plotly_chart(fig, use_container_width=True)
                 
                 with col2:
-                    self._plot_overall_rankings(df)
-                
-                # Show tender context if available
-                tender_context = self.state_manager.get_tender_context()
-                if tender_context:
-                    with st.expander("View Tender Requirements"):
-                        st.write("### Key Requirements from Tender Document")
-                        for query, result in zip(tender_context['queries'], tender_context['results']):
-                            st.markdown(f"**{query}**")
-                            st.write(result)
-                            st.markdown("---")
-            
-        with tab2:
-            self._render_individual_reports(results)
-            
-        with tab3:
-            self._render_comparison_table(comparison_data)
+                    st.write(f"### {score_type} Insights")
+                    avg_score = df[score_type].mean()
+                    top_scorer = df.loc[df[score_type].idxmax()]
+                    st.write(f"• Average: {avg_score:.1f}%")
+                    st.write(f"• Top performer: {top_scorer['Company']}")
+                    st.write(f"• Score range: {df[score_type].min():.0f}% - {df[score_type].max():.0f}%")
+                    
+                    if score_type == 'Risk Score':
+                        risky_bids = df[df[score_type] > 60]['Company'].tolist()
+                        if risky_bids:
+                            st.write("### High Risk Bids")
+                            for bid in risky_bids:
+                                st.write(f"• {bid}")
 
     def _render_individual_reports(self, results):
         """Render individual evaluation reports."""
         for file_name, result in results.items():
-            with st.expander(f"📊 {file_name}", expanded=False):
+            with st.expander(f"📊 {file_name} - Detailed Report", expanded=False):
                 if 'evaluation_report' in result:
                     st.markdown(result['evaluation_report'])
-                    
-                    if st.button("Export Report", key=f"export_{file_name}"):
-                        self._export_evaluation(file_name, result['evaluation_report'])
+                    st.download_button(
+                        "📥 Export Report",
+                        result['evaluation_report'],
+                        file_name=f"{file_name}_evaluation.md",
+                        mime="text/markdown"
+                    )
                 else:
                     st.warning("No evaluation report available for this document.")
 
     def _render_comparison_table(self, comparison_data):
-        """Render detailed comparison table."""
+        """Render interactive comparison table."""
         if not comparison_data:
-            st.info("No comparison data available yet.")
+            st.info("No comparison data available.")
             return
 
-        df = pd.DataFrame(comparison_data).T
+        df = pd.DataFrame(comparison_data).T.reset_index()
         
-        # Apply filters
-        st.subheader("Comparison Filters")
-        cols = st.columns(3)
-        with cols[0]:
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        with col1:
             min_score = st.slider("Minimum Overall Score", 0, 100, 0, 5)
-        with cols[1]:
+        with col2:
             selected_companies = st.multiselect(
                 "Filter by Company",
                 options=df['Company'].unique(),
@@ -128,62 +278,48 @@ class EvaluationPage:
             )
         
         # Filter data
-        mask = (df['Overall Score'] >= min_score) & (df['Company'].isin(selected_companies))
-        filtered_df = df[mask]
-        
-        # Display table
+        filtered_df = df[
+            (df['Overall Score'] >= min_score) &
+            (df['Company'].isin(selected_companies))
+        ]
+
+        # Display interactive table
         st.dataframe(
             filtered_df,
             column_config={
                 "Company": st.column_config.TextColumn("Company", width="medium"),
-                "Technical Score": st.column_config.NumberColumn(
+                "Technical Score": st.column_config.ProgressColumn(
                     "Technical Score",
                     help="Technical evaluation score",
-                    format="%d%%"
+                    format="%d%%",
+                    min_value=0,
+                    max_value=100
                 ),
-                "Commercial Score": st.column_config.NumberColumn(
+                "Commercial Score": st.column_config.ProgressColumn(
                     "Commercial Score",
                     help="Commercial evaluation score",
-                    format="%d%%"
+                    format="%d%%",
+                    min_value=0,
+                    max_value=100
                 ),
-                "Compliance Score": st.column_config.NumberColumn(
-                    "Compliance Score",
-                    help="Compliance evaluation score",
-                    format="%d%%"
-                ),
-                "Risk Score": st.column_config.NumberColumn(
-                    "Risk Score",
-                    help="Risk evaluation score",
-                    format="%d%%"
-                ),
-                "Overall Score": st.column_config.NumberColumn(
+                "Overall Score": st.column_config.ProgressColumn(
                     "Overall Score",
                     help="Overall evaluation score",
-                    format="%d%%"
+                    format="%d%%",
+                    min_value=0,
+                    max_value=100
                 ),
             },
             use_container_width=True,
             hide_index=True
         )
         
-        if st.button("Export Comparison"):
-            self._export_comparison_table(filtered_df)
-
-    def _export_evaluation(self, file_name: str, evaluation_report: str):
-        """Export individual evaluation report."""
-        st.download_button(
-            label="Download Report",
-            data=evaluation_report,
-            file_name=f"{file_name}_evaluation.md",
-            mime="text/markdown"
-        )
-
-    def _export_comparison_table(self, df: pd.DataFrame):
-        """Export comparison table as CSV."""
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="Download Comparison",
-            data=csv,
-            file_name="bid_comparison.csv",
-            mime="text/csv"
-        )
+        # Export option
+        if st.button("📥 Export Comparison Data"):
+            csv = filtered_df.to_csv(index=False)
+            st.download_button(
+                "Download CSV",
+                csv,
+                file_name="bid_comparison.csv",
+                mime="text/csv"
+            )

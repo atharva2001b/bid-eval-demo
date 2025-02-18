@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 from state_manager import StateManager
 import tempfile
 import os
-from rag_processor import process_queries
+from enhanced_rag_processor import process_queries
 from pdf_processor import convert_pdf_to_text
 
 class UploadPage:

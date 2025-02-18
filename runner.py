@@ -1,6 +1,6 @@
 import streamlit as st
 from ui import BidAnalyzerUI
-from rag_processor import process_queries
+from enhanced_rag_processor import process_queries
 from pdf_processor import convert_pdf_to_text
 from ollama_processor import OllamaProcessor
 from state_manager import StateManager
