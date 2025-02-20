@@ -1,9 +1,9 @@
 import streamlit as st
 from typing import Optional, List
 from state_manager import StateManager
-from pages.upload_page import UploadPage
-from pages.analysis_page import AnalysisPage
-from pages.evaluation_page import EvaluationPage
+from pages_components.upload_page import UploadPage
+from pages_components.analysis_page import AnalysisPage
+from pages_components.evaluation_page import EvaluationPage
 
 class BidAnalyzerUI:
     def __init__(self):
